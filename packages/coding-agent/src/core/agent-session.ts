@@ -15,16 +15,9 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import type {
-	Agent,
-	AgentEvent,
-	AgentMessage,
-	AgentState,
-	AgentTool,
-	ThinkingLevel,
-} from "@mariozechner/pi-agent-core";
-import type { AssistantMessage, ImageContent, Model, TextContent } from "@mariozechner/pi-ai";
-import { isContextOverflow, modelsAreEqual, resetApiProviders, supportsXhigh } from "@mariozechner/pi-ai";
+import type { Agent, AgentEvent, AgentMessage, AgentState, AgentTool, ThinkingLevel } from "@enjoywt/pi-agent-core";
+import type { AssistantMessage, ImageContent, Model, TextContent } from "@enjoywt/pi-ai";
+import { isContextOverflow, modelsAreEqual, resetApiProviders, supportsXhigh } from "@enjoywt/pi-ai";
 import { getDocsPath } from "../config.js";
 import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
@@ -489,10 +482,7 @@ export class AgentSession {
 
 	private async _processAgentEvent(event: AgentEvent): Promise<void> {
 		if (event.type === "queue_consumed") {
-			const queue =
-				event.delivery === "steer"
-					? this._steeringMessages
-					: this._followUpMessages;
+			const queue = event.delivery === "steer" ? this._steeringMessages : this._followUpMessages;
 			const queueIndex = queue.findIndex((message) => message.id === event.queueItemId);
 			if (queueIndex !== -1) {
 				queue.splice(queueIndex, 1);

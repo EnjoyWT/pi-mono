@@ -7,7 +7,7 @@ import {
 	type TextContent,
 	type ThinkingBudgets,
 	type Transport,
-} from "@mariozechner/pi-ai";
+} from "@enjoywt/pi-ai";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import type {
 	AfterToolCallContext,
@@ -20,8 +20,8 @@ import type {
 	AgentTool,
 	BeforeToolCallContext,
 	BeforeToolCallResult,
-	QueuedAgentMessage,
 	QueueDelivery,
+	QueuedAgentMessage,
 	StreamFn,
 	ToolExecutionMode,
 } from "./types.js";
