@@ -219,6 +219,15 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
  */
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
+export type QueueDelivery = "steer" | "followUp";
+
+export interface QueuedAgentMessage {
+	id: string;
+	delivery: QueueDelivery;
+	message: AgentMessage;
+	enqueuedAt: number;
+}
+
 /**
  * Extensible interface for custom app messages.
  * Apps can extend via declaration merging:
@@ -330,6 +339,8 @@ export type AgentEvent =
 	// Turn lifecycle - a turn is one assistant response + any tool calls/results
 	| { type: "turn_start" }
 	| { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }
+	// Queue lifecycle - emitted when a queued steer/follow-up item is consumed into the run
+	| { type: "queue_consumed"; queueItemId: string; delivery: QueueDelivery; message: AgentMessage }
 	// Message lifecycle - emitted for user, assistant, and toolResult messages
 	| { type: "message_start"; message: AgentMessage }
 	// Only emitted for assistant messages during streaming

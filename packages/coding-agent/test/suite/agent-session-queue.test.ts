@@ -353,11 +353,12 @@ describe("AgentSession queue characterization", () => {
 		expect(harness.session.messages.map((message) => message.role)).toEqual(["user", "custom", "assistant"]);
 	});
 
-	it("updates pendingMessageCount and removes queued text before message_start is emitted", async () => {
+	it("consumes queued items before queued user message_start is emitted", async () => {
 		const waiting = await createWaitingHarness();
 		const { harness, waitForToolStart, promptPromise, releaseToolExecution } = waiting;
 		harnesses.push(harness);
 		const countsAtQueuedMessageStart: number[] = [];
+		const observedEvents: string[] = [];
 
 		harness.setResponses([
 			fauxAssistantMessage(fauxToolCall("wait", {}), { stopReason: "toolUse" }),
@@ -365,11 +366,15 @@ describe("AgentSession queue characterization", () => {
 		]);
 
 		harness.session.subscribe((event) => {
+			if (event.type === "queue_consumed" && getMessageText(event.message) === "queued") {
+				observedEvents.push(`queue:${event.delivery}:${event.queueItemId}`);
+			}
 			if (
 				event.type === "message_start" &&
 				event.message.role === "user" &&
 				getMessageText(event.message) === "queued"
 			) {
+				observedEvents.push("message_start:queued");
 				countsAtQueuedMessageStart.push(harness.session.pendingMessageCount);
 			}
 		});
@@ -381,6 +386,8 @@ describe("AgentSession queue characterization", () => {
 		await promptPromise;
 
 		expect(countsAtQueuedMessageStart).toEqual([0]);
+		expect(observedEvents[0]).toMatch(/^queue:steer:/);
+		expect(observedEvents[1]).toBe("message_start:queued");
 		expect(harness.session.pendingMessageCount).toBe(0);
 	});
 

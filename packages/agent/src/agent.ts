@@ -20,6 +20,8 @@ import type {
 	AgentTool,
 	BeforeToolCallContext,
 	BeforeToolCallResult,
+	QueuedAgentMessage,
+	QueueDelivery,
 	StreamFn,
 	ToolExecutionMode,
 } from "./types.js";
@@ -110,19 +112,30 @@ export interface AgentOptions {
 }
 
 class PendingMessageQueue {
-	private messages: AgentMessage[] = [];
+	private messages: QueuedAgentMessage[] = [];
 
-	constructor(public mode: QueueMode) {}
+	constructor(
+		public mode: QueueMode,
+		private readonly delivery: QueueDelivery,
+		private readonly nextId: () => string,
+	) {}
 
-	enqueue(message: AgentMessage): void {
-		this.messages.push(message);
+	enqueue(message: AgentMessage): QueuedAgentMessage {
+		const queuedMessage: QueuedAgentMessage = {
+			id: this.nextId(),
+			delivery: this.delivery,
+			message,
+			enqueuedAt: Date.now(),
+		};
+		this.messages.push(queuedMessage);
+		return queuedMessage;
 	}
 
 	hasItems(): boolean {
 		return this.messages.length > 0;
 	}
 
-	drain(): AgentMessage[] {
+	drain(): QueuedAgentMessage[] {
 		if (this.mode === "all") {
 			const drained = this.messages.slice();
 			this.messages = [];
@@ -159,6 +172,7 @@ export class Agent {
 	private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
 	private readonly steeringQueue: PendingMessageQueue;
 	private readonly followUpQueue: PendingMessageQueue;
+	private queueItemCounter = 0;
 
 	public convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
 	public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
@@ -194,8 +208,12 @@ export class Agent {
 		this.onPayload = options.onPayload;
 		this.beforeToolCall = options.beforeToolCall;
 		this.afterToolCall = options.afterToolCall;
-		this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
-		this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
+		this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time", "steer", () =>
+			this.nextQueueItemId(),
+		);
+		this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time", "followUp", () =>
+			this.nextQueueItemId(),
+		);
 		this.sessionId = options.sessionId;
 		this.thinkingBudgets = options.thinkingBudgets;
 		this.transport = options.transport ?? "sse";
@@ -246,13 +264,13 @@ export class Agent {
 	}
 
 	/** Queue a message to be injected after the current assistant turn finishes. */
-	steer(message: AgentMessage): void {
-		this.steeringQueue.enqueue(message);
+	steer(message: AgentMessage): QueuedAgentMessage {
+		return this.steeringQueue.enqueue(message);
 	}
 
 	/** Queue a message to run only after the agent would otherwise stop. */
-	followUp(message: AgentMessage): void {
-		this.followUpQueue.enqueue(message);
+	followUp(message: AgentMessage): QueuedAgentMessage {
+		return this.followUpQueue.enqueue(message);
 	}
 
 	/** Remove all queued steering messages. */
@@ -333,13 +351,13 @@ export class Agent {
 		if (lastMessage.role === "assistant") {
 			const queuedSteering = this.steeringQueue.drain();
 			if (queuedSteering.length > 0) {
-				await this.runPromptMessages(queuedSteering, { skipInitialSteeringPoll: true });
+				await this.runQueuedPromptMessages(queuedSteering, { skipInitialSteeringPoll: true });
 				return;
 			}
 
 			const queuedFollowUps = this.followUpQueue.drain();
 			if (queuedFollowUps.length > 0) {
-				await this.runPromptMessages(queuedFollowUps);
+				await this.runQueuedPromptMessages(queuedFollowUps);
 				return;
 			}
 
@@ -378,6 +396,36 @@ export class Agent {
 				this.createContextSnapshot(),
 				this.createLoopConfig(options),
 				(event) => this.processEvents(event),
+				signal,
+				this.streamFn,
+			);
+		});
+	}
+
+	private async runQueuedPromptMessages(
+		items: QueuedAgentMessage[],
+		options: { skipInitialSteeringPoll?: boolean } = {},
+	): Promise<void> {
+		await this.runWithLifecycle(async (signal) => {
+			let queueConsumedEmitted = false;
+			await runAgentLoop(
+				items.map((item) => item.message),
+				this.createContextSnapshot(),
+				this.createLoopConfig(options),
+				async (event) => {
+					if (!queueConsumedEmitted && event.type === "message_start") {
+						queueConsumedEmitted = true;
+						for (const item of items) {
+							await this.processEvents({
+								type: "queue_consumed",
+								queueItemId: item.id,
+								delivery: item.delivery,
+								message: item.message,
+							});
+						}
+					}
+					await this.processEvents(event);
+				},
 				signal,
 				this.streamFn,
 			);
@@ -425,10 +473,35 @@ export class Agent {
 					skipInitialSteeringPoll = false;
 					return [];
 				}
-				return this.steeringQueue.drain();
+				const queuedMessages = this.steeringQueue.drain();
+				for (const item of queuedMessages) {
+					await this.processEvents({
+						type: "queue_consumed",
+						queueItemId: item.id,
+						delivery: item.delivery,
+						message: item.message,
+					});
+				}
+				return queuedMessages.map((item) => item.message);
 			},
-			getFollowUpMessages: async () => this.followUpQueue.drain(),
+			getFollowUpMessages: async () => {
+				const queuedMessages = this.followUpQueue.drain();
+				for (const item of queuedMessages) {
+					await this.processEvents({
+						type: "queue_consumed",
+						queueItemId: item.id,
+						delivery: item.delivery,
+						message: item.message,
+					});
+				}
+				return queuedMessages.map((item) => item.message);
+			},
 		};
+	}
+
+	private nextQueueItemId(): string {
+		this.queueItemCounter += 1;
+		return `queue-${this.queueItemCounter}`;
 	}
 
 	private async runWithLifecycle(executor: (signal: AbortSignal) => Promise<void>): Promise<void> {

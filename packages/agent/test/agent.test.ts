@@ -254,20 +254,28 @@ describe("Agent", () => {
 		const agent = new Agent();
 
 		const message = { role: "user" as const, content: "Steering message", timestamp: Date.now() };
-		agent.steer(message);
+		const queuedItem = agent.steer(message);
 
 		// The message is queued but not yet in state.messages
 		expect(agent.state.messages).not.toContainEqual(message);
+		expect(queuedItem.delivery).toBe("steer");
+		expect(queuedItem.message).toBe(message);
+		expect(queuedItem.id).toBeTruthy();
+		expect(typeof queuedItem.enqueuedAt).toBe("number");
 	});
 
 	it("should support follow-up message queue", async () => {
 		const agent = new Agent();
 
 		const message = { role: "user" as const, content: "Follow-up message", timestamp: Date.now() };
-		agent.followUp(message);
+		const queuedItem = agent.followUp(message);
 
 		// The message is queued but not yet in state.messages
 		expect(agent.state.messages).not.toContainEqual(message);
+		expect(queuedItem.delivery).toBe("followUp");
+		expect(queuedItem.message).toBe(message);
+		expect(queuedItem.id).toBeTruthy();
+		expect(typeof queuedItem.enqueuedAt).toBe("number");
 	});
 
 	it("should handle abort controller", () => {
@@ -389,6 +397,55 @@ describe("Agent", () => {
 
 		expect(hasQueuedFollowUp).toBe(true);
 		expect(agent.state.messages[agent.state.messages.length - 1].role).toBe("assistant");
+	});
+
+	it("continue() should emit queue_consumed before queued user message_start", async () => {
+		const agent = new Agent({
+			streamFn: () => {
+				const stream = new MockAssistantStream();
+				queueMicrotask(() => {
+					stream.push({ type: "done", reason: "stop", message: createAssistantMessage("Processed") });
+				});
+				return stream;
+			},
+		});
+
+		const seenEvents: string[] = [];
+		agent.subscribe((event) => {
+			if (event.type === "queue_consumed") {
+				seenEvents.push(`queue:${event.delivery}:${event.queueItemId}`);
+			}
+			if (event.type === "message_start" && event.message.role === "user") {
+				const text =
+					typeof event.message.content === "string"
+						? event.message.content
+						: event.message.content
+								.filter((part): part is { type: "text"; text: string } => part.type === "text")
+								.map((part) => part.text)
+								.join("");
+				seenEvents.push(`user:${text}`);
+			}
+		});
+
+		agent.state.messages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Initial" }],
+				timestamp: Date.now() - 10,
+			},
+			createAssistantMessage("Initial response"),
+		];
+
+		agent.followUp({
+			role: "user",
+			content: [{ type: "text", text: "Queued follow-up" }],
+			timestamp: Date.now(),
+		});
+
+		await agent.continue();
+
+		expect(seenEvents[0]).toMatch(/^queue:followUp:/);
+		expect(seenEvents[1]).toBe("user:Queued follow-up");
 	});
 
 	it("continue() should keep one-at-a-time steering semantics from assistant tail", async () => {
