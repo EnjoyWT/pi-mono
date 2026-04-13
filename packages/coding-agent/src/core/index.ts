@@ -9,6 +9,7 @@ export {
 	type AgentSessionEventListener,
 	type ModelCycleResult,
 	type PromptOptions,
+	type QueuedSessionMessage,
 	type SessionStats,
 } from "./agent-session.js";
 export {

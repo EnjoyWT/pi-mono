@@ -15,7 +15,15 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import type { Agent, AgentEvent, AgentMessage, AgentState, AgentTool, ThinkingLevel } from "@enjoywt/pi-agent-core";
+import type {
+	Agent,
+	AgentEvent,
+	AgentMessage,
+	AgentState,
+	AgentTool,
+	QueueDelivery,
+	ThinkingLevel,
+} from "@enjoywt/pi-agent-core";
 import type { AssistantMessage, ImageContent, Model, TextContent } from "@enjoywt/pi-ai";
 import { isContextOverflow, modelsAreEqual, resetApiProviders, supportsXhigh } from "@enjoywt/pi-ai";
 import { getDocsPath } from "../config.js";
@@ -104,6 +112,12 @@ export function parseSkillBlock(text: string): ParsedSkillBlock | null {
 /** Session-specific events that extend the core AgentEvent */
 export type AgentSessionEvent =
 	| AgentEvent
+	| {
+			type: "queue_consumed";
+			queueItemId: string;
+			delivery: QueueDelivery;
+			message: AgentMessage;
+	  }
 	| {
 			type: "queue_update";
 			steering: readonly string[];
@@ -208,10 +222,11 @@ interface ToolDefinitionEntry {
 	sourceInfo: SourceInfo;
 }
 
-interface PendingQueuedMessage {
+export interface QueuedSessionMessage {
 	id: string;
 	text: string;
 	enqueuedAt: number;
+	delivery: QueueDelivery;
 }
 
 // ============================================================================
@@ -241,9 +256,9 @@ export class AgentSession {
 	private _agentEventQueue: Promise<void> = Promise.resolve();
 
 	/** Tracks pending steering messages for UI display. Removed when delivered. */
-	private _steeringMessages: PendingQueuedMessage[] = [];
+	private _steeringMessages: QueuedSessionMessage[] = [];
 	/** Tracks pending follow-up messages for UI display. Removed when delivered. */
-	private _followUpMessages: PendingQueuedMessage[] = [];
+	private _followUpMessages: QueuedSessionMessage[] = [];
 	/** Messages queued to be included with the next user prompt as context ("asides"). */
 	private _pendingNextTurnMessages: CustomMessage[] = [];
 
@@ -1117,7 +1132,7 @@ export class AgentSession {
 	 * @param images Optional image attachments to include with the message
 	 * @throws Error if text is an extension command
 	 */
-	async steer(text: string, images?: ImageContent[]): Promise<void> {
+	async steer(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
 		// Check for extension commands (cannot be queued)
 		if (text.startsWith("/")) {
 			this._throwIfExtensionCommand(text);
@@ -1127,7 +1142,7 @@ export class AgentSession {
 		let expandedText = this._expandSkillCommand(text);
 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
 
-		await this._queueSteer(expandedText, images);
+		return await this._queueSteer(expandedText, images);
 	}
 
 	/**
@@ -1137,7 +1152,7 @@ export class AgentSession {
 	 * @param images Optional image attachments to include with the message
 	 * @throws Error if text is an extension command
 	 */
-	async followUp(text: string, images?: ImageContent[]): Promise<void> {
+	async followUp(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
 		// Check for extension commands (cannot be queued)
 		if (text.startsWith("/")) {
 			this._throwIfExtensionCommand(text);
@@ -1147,13 +1162,13 @@ export class AgentSession {
 		let expandedText = this._expandSkillCommand(text);
 		expandedText = expandPromptTemplate(expandedText, [...this.promptTemplates]);
 
-		await this._queueFollowUp(expandedText, images);
+		return await this._queueFollowUp(expandedText, images);
 	}
 
 	/**
 	 * Internal: Queue a steering message (already expanded, no extension command check).
 	 */
-	private async _queueSteer(text: string, images?: ImageContent[]): Promise<void> {
+	private async _queueSteer(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
 			content.push(...images);
@@ -1163,18 +1178,21 @@ export class AgentSession {
 			content,
 			timestamp: Date.now(),
 		});
-		this._steeringMessages.push({
+		const sessionItem = {
 			id: queuedItem.id,
 			text,
 			enqueuedAt: queuedItem.enqueuedAt,
-		});
+			delivery: "steer" as const,
+		};
+		this._steeringMessages.push(sessionItem);
 		this._emitQueueUpdate();
+		return sessionItem;
 	}
 
 	/**
 	 * Internal: Queue a follow-up message (already expanded, no extension command check).
 	 */
-	private async _queueFollowUp(text: string, images?: ImageContent[]): Promise<void> {
+	private async _queueFollowUp(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
 			content.push(...images);
@@ -1184,12 +1202,15 @@ export class AgentSession {
 			content,
 			timestamp: Date.now(),
 		});
-		this._followUpMessages.push({
+		const sessionItem = {
 			id: queuedItem.id,
 			text,
 			enqueuedAt: queuedItem.enqueuedAt,
-		});
+			delivery: "followUp" as const,
+		};
+		this._followUpMessages.push(sessionItem);
 		this._emitQueueUpdate();
+		return sessionItem;
 	}
 
 	/**
@@ -1321,9 +1342,19 @@ export class AgentSession {
 		return this._steeringMessages.map((message) => message.text);
 	}
 
+	/** Get pending steering queue items with stable ids. */
+	getSteeringQueueItems(): readonly QueuedSessionMessage[] {
+		return this._steeringMessages.map((message) => ({ ...message }));
+	}
+
 	/** Get pending follow-up messages (read-only) */
 	getFollowUpMessages(): readonly string[] {
 		return this._followUpMessages.map((message) => message.text);
+	}
+
+	/** Get pending follow-up queue items with stable ids. */
+	getFollowUpQueueItems(): readonly QueuedSessionMessage[] {
+		return this._followUpMessages.map((message) => ({ ...message }));
 	}
 
 	get resourceLoader(): ResourceLoader {

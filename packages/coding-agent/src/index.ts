@@ -10,6 +10,7 @@ export {
 	type ModelCycleResult,
 	type ParsedSkillBlock,
 	type PromptOptions,
+	type QueuedSessionMessage,
 	parseSkillBlock,
 	type SessionStats,
 } from "./core/agent-session.js";
