@@ -187,6 +187,8 @@ export interface PromptOptions {
 	streamingBehavior?: "steer" | "followUp";
 	/** Source of input for extension input event handlers. Defaults to "interactive". */
 	source?: InputSource;
+	/** Additional app-defined metadata transparently attached to emitted user messages. */
+	[key: string]: unknown;
 }
 
 /** Result from cycleModel() */
@@ -229,6 +231,19 @@ export interface QueuedSessionMessage {
 	delivery: QueueDelivery;
 }
 
+const INTERNAL_PROMPT_OPTION_KEYS = new Set(["expandPromptTemplates", "images", "streamingBehavior", "source"]);
+
+function getUserMessageOptions(options?: PromptOptions): Record<string, unknown> | undefined {
+	if (!options) return undefined;
+
+	const entries = Object.entries(options).filter(
+		([key, value]) => !INTERNAL_PROMPT_OPTION_KEYS.has(key) && value !== undefined,
+	);
+	if (entries.length === 0) return undefined;
+
+	return Object.fromEntries(entries);
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -259,6 +274,7 @@ export class AgentSession {
 	private _steeringMessages: QueuedSessionMessage[] = [];
 	/** Tracks pending follow-up messages for UI display. Removed when delivered. */
 	private _followUpMessages: QueuedSessionMessage[] = [];
+	private _queuedSessionMessageCounter = 0;
 	/** Messages queued to be included with the next user prompt as context ("asides"). */
 	private _pendingNextTurnMessages: CustomMessage[] = [];
 
@@ -448,7 +464,7 @@ export class AgentSession {
 	private _lastAssistantMessage: AssistantMessage | undefined = undefined;
 
 	/** Internal handler for agent events - shared by subscribe and reconnect */
-	private _handleAgentEvent = (event: AgentEvent): void => {
+	private _handleAgentEvent = async (event: AgentEvent): Promise<void> => {
 		// Create retry promise synchronously before queueing async processing.
 		// Agent.emit() calls this handler synchronously, and prompt() calls waitForRetry()
 		// as soon as agent.prompt() resolves. If _retryPromise is created only inside
@@ -456,13 +472,15 @@ export class AgentSession {
 		// and waitForRetry() can miss the in-flight retry.
 		this._createRetryPromiseForAgentEnd(event);
 
-		this._agentEventQueue = this._agentEventQueue.then(
+		const processing = this._agentEventQueue.then(
 			() => this._processAgentEvent(event),
 			() => this._processAgentEvent(event),
 		);
+		this._agentEventQueue = processing;
 
 		// Keep queue alive if an event handler fails
 		this._agentEventQueue.catch(() => {});
+		await processing.catch(() => {});
 	};
 
 	private _createRetryPromiseForAgentEnd(event: AgentEvent): void {
@@ -499,8 +517,19 @@ export class AgentSession {
 		if (event.type === "queue_consumed") {
 			const queue = event.delivery === "steer" ? this._steeringMessages : this._followUpMessages;
 			const queueIndex = queue.findIndex((message) => message.id === event.queueItemId);
+			const queuedUserText =
+				queueIndex === -1 && event.message.role === "user"
+					? this._extractUserMessageText(event.message.content)
+					: undefined;
+			const fallbackQueueIndex =
+				queueIndex === -1 && queuedUserText
+					? queue.findIndex((message) => message.text === queuedUserText)
+					: -1;
 			if (queueIndex !== -1) {
 				queue.splice(queueIndex, 1);
+				this._emitQueueUpdate();
+			} else if (fallbackQueueIndex !== -1) {
+				queue.splice(fallbackQueueIndex, 1);
 				this._emitQueueUpdate();
 			}
 		}
@@ -969,9 +998,9 @@ export class AgentSession {
 				);
 			}
 			if (options.streamingBehavior === "followUp") {
-				await this._queueFollowUp(expandedText, currentImages);
+				await this._queueFollowUp(expandedText, currentImages, options);
 			} else {
-				await this._queueSteer(expandedText, currentImages);
+				await this._queueSteer(expandedText, currentImages, options);
 			}
 			return;
 		}
@@ -1021,6 +1050,7 @@ export class AgentSession {
 			role: "user",
 			content: userContent,
 			timestamp: Date.now(),
+			options: getUserMessageOptions(options),
 		});
 
 		// Inject any pending "nextTurn" messages as context alongside the user message
@@ -1168,7 +1198,11 @@ export class AgentSession {
 	/**
 	 * Internal: Queue a steering message (already expanded, no extension command check).
 	 */
-	private async _queueSteer(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
+	private async _queueSteer(
+		text: string,
+		images?: ImageContent[],
+		options?: PromptOptions,
+	): Promise<QueuedSessionMessage> {
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
 			content.push(...images);
@@ -1177,11 +1211,12 @@ export class AgentSession {
 			role: "user",
 			content,
 			timestamp: Date.now(),
+			options: getUserMessageOptions(options),
 		});
 		const sessionItem = {
-			id: queuedItem.id,
+			id: queuedItem?.id ?? this._nextQueuedSessionMessageId(),
 			text,
-			enqueuedAt: queuedItem.enqueuedAt,
+			enqueuedAt: queuedItem?.enqueuedAt ?? Date.now(),
 			delivery: "steer" as const,
 		};
 		this._steeringMessages.push(sessionItem);
@@ -1192,7 +1227,11 @@ export class AgentSession {
 	/**
 	 * Internal: Queue a follow-up message (already expanded, no extension command check).
 	 */
-	private async _queueFollowUp(text: string, images?: ImageContent[]): Promise<QueuedSessionMessage> {
+	private async _queueFollowUp(
+		text: string,
+		images?: ImageContent[],
+		options?: PromptOptions,
+	): Promise<QueuedSessionMessage> {
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
 			content.push(...images);
@@ -1201,16 +1240,22 @@ export class AgentSession {
 			role: "user",
 			content,
 			timestamp: Date.now(),
+			options: getUserMessageOptions(options),
 		});
 		const sessionItem = {
-			id: queuedItem.id,
+			id: queuedItem?.id ?? this._nextQueuedSessionMessageId(),
 			text,
-			enqueuedAt: queuedItem.enqueuedAt,
+			enqueuedAt: queuedItem?.enqueuedAt ?? Date.now(),
 			delivery: "followUp" as const,
 		};
 		this._followUpMessages.push(sessionItem);
 		this._emitQueueUpdate();
 		return sessionItem;
+	}
+
+	private _nextQueuedSessionMessageId(): string {
+		this._queuedSessionMessageCounter += 1;
+		return `session-queue-${this._queuedSessionMessageCounter}`;
 	}
 
 	/**

@@ -185,6 +185,7 @@ export interface UserMessage {
 	role: "user";
 	content: string | (TextContent | ImageContent)[];
 	timestamp: number; // Unix timestamp in milliseconds
+	options?: Record<string, unknown>; // App-defined prompt metadata transparently carried through runtime events
 }
 
 export interface AssistantMessage {
