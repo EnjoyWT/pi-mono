@@ -7,9 +7,12 @@
 		"paths": {
 			"*": ["./*"],
 			"@mariozechner/pi-agent-core": ["../../agent/dist/index.d.ts"],
+			"@enjoywt/pi-agent-core": ["../../agent/dist/index.d.ts"],
 			"@mariozechner/pi-ai": ["../../ai/dist/index.d.ts"],
+			"@enjoywt/pi-ai": ["../../ai/dist/index.d.ts"],
 			"@mariozechner/pi-tui": ["../../tui/dist/index.d.ts"],
-			"@mariozechner/pi-web-ui": ["../dist/index.d.ts"]
+			"@mariozechner/pi-web-ui": ["../src/index.ts"],
+			"@mariozechner/pi-web-ui/*": ["../src/*"]
 		},
 		"strict": true,
 		"skipLibCheck": true,

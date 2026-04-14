@@ -1,7 +1,23 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@mariozechner/pi-agent-core": ["../agent/dist/index.d.ts"],
+      "@enjoywt/pi-agent-core": ["../agent/dist/index.d.ts"],
+      "@mariozechner/pi-agent-core/*": ["../agent/dist/*"],
+      "@enjoywt/pi-agent-core/*": ["../agent/dist/*"],
+      "@mariozechner/pi-ai": ["../ai/dist/index.d.ts"],
+      "@enjoywt/pi-ai": ["../ai/dist/index.d.ts"],
+      "@mariozechner/pi-ai/oauth": ["../ai/dist/oauth.d.ts"],
+      "@enjoywt/pi-ai/oauth": ["../ai/dist/oauth.d.ts"],
+      "@mariozechner/pi-ai/*": ["../ai/dist/*"],
+      "@enjoywt/pi-ai/*": ["../ai/dist/*"],
+      "@mariozechner/pi-ai/dist/*": ["../ai/dist/*"],
+      "@enjoywt/pi-ai/dist/*": ["../ai/dist/*"],
+      "@mariozechner/pi-tui": ["../tui/dist/index.d.ts"],
+      "@mariozechner/pi-tui/*": ["../tui/dist/*"]
+    }
   },
   "include": ["src/**/*"]
 }
