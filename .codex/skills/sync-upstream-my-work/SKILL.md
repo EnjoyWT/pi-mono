@@ -10,6 +10,10 @@ description: Synchronize a fork that keeps `main` aligned with an official `upst
 Keep `main` as the upstream-tracking branch and keep custom package and publishing changes on `my-work`.
 Use the bundled script for the default workflow so branch switching, fast-forward checks, and merge strategy stay consistent.
 
+The primary goal is not to keep every historical package or local file forever.
+The goal is to keep the fork close to official upstream while preserving the small set of intentional fork changes: package identities, GitHub Packages publishing, and explicitly requested source-level customizations.
+When upstream removes old official modules that the fork did not intentionally customize, accept the upstream removal.
+
 ## Workflow
 
 Assume this branch model unless the user says otherwise:
@@ -90,7 +94,39 @@ If merging `main` into `my-work` conflicts:
    For merge: `git commit`
    For rebase: `git rebase --continue`
 
+For delete/modify conflicts, distinguish old upstream code from fork intent.
+If the fork only changed package metadata for a module that upstream deleted, accept upstream deletion.
+Do not keep removed modules merely because prior fork package-name rewrites touched their `package.json` files.
+
 Do not use destructive reset or checkout commands to escape conflicts unless the user explicitly asks for that.
+
+## Keep vs Delete Rules
+
+When resolving conflicts, decide from evidence instead of asking the user repeatedly.
+
+Keep fork-side changes when they are one of:
+
+- The three package identities and GitHub Packages registry settings listed above.
+- `.github/workflows/publish-github-packages.yml` or other fork publishing infrastructure.
+- Source-level behavior that appears in fork-only commits, such as queue behavior or prompt metadata.
+- Documentation or scripts under `.codex/skills/sync-upstream-my-work/`.
+
+Accept upstream changes or deletions when:
+
+- Upstream deleted a module and the fork only changed package metadata, lockfile entries, versions, or package names for that module.
+- The change is a broad official refactor, dependency migration, file removal, or generated-file update unrelated to the fork's explicit publishing/custom behavior.
+- Keeping the file would reintroduce an upstream-removed package such as a stale workspace.
+
+Use these commands to classify intent:
+
+```bash
+git log --oneline main..HEAD -- <path>
+git diff --stat main..HEAD -- <path>
+git show --stat --oneline <fork-commit>
+```
+
+Ask the user only when the conflict touches nontrivial fork-only source behavior and the correct outcome is ambiguous.
+Do not ask for old-module delete/modify conflicts where the only fork-side change is package metadata; accept upstream deletion.
 
 ## Publishing Notes
 

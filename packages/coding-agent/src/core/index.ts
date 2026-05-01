@@ -26,7 +26,7 @@ export {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 } from "./agent-session-services.js";
-export { type BashExecutorOptions, type BashResult, executeBash, executeBashWithOperations } from "./bash-executor.js";
+export { type BashExecutorOptions, type BashResult, executeBashWithOperations } from "./bash-executor.js";
 export type { CompactionResult } from "./compaction/index.js";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.js";
 // Extensions system
@@ -36,6 +36,8 @@ export {
 	type AgentToolResult,
 	type AgentToolUpdateCallback,
 	type BeforeAgentStartEvent,
+	type BeforeAgentStartEventResult,
+	type BuildSystemPromptOptions,
 	type ContextEvent,
 	defineTool,
 	discoverAndLoadExtensions,
@@ -71,5 +73,6 @@ export {
 	type ToolResultEvent,
 	type TurnEndEvent,
 	type TurnStartEvent,
+	type WorkingIndicatorOptions,
 } from "./extensions/index.js";
 export { createSyntheticSourceInfo } from "./source-info.js";

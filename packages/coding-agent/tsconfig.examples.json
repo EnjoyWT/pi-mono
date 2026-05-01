@@ -10,7 +10,8 @@
 			"@mariozechner/pi-tui": ["../tui/src/index.ts"],
 			"@mariozechner/pi-ai": ["../ai/src/index.ts"],
 			"@enjoywt/pi-ai": ["../ai/src/index.ts"],
-			"@sinclair/typebox": ["../../node_modules/@sinclair/typebox"]
+			"@sinclair/typebox": ["../../node_modules/@sinclair/typebox"],
+			"typebox": ["../../node_modules/typebox"]
 		},
 		"skipLibCheck": true
 	},
