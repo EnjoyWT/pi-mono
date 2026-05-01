@@ -134,6 +134,17 @@ Published GitHub Packages depend on the contents and version numbers on `my-work
 Keep package scope and GitHub Packages workflow changes on `my-work`, then sync official updates from `main` into it.
 If upstream introduces package metadata conflicts, treat preservation of the three `@enjoywt/*` package identities as a release-blocking requirement.
 
+For the GitHub Packages publish workflow, install dependencies from the normal npm registry/CDN first, then configure GitHub Packages auth only before `npm publish`.
+Do not set `actions/setup-node` `registry-url: https://npm.pkg.github.com` before `npm ci`; that can make public dependencies resolve against GitHub Packages.
+Use `npm ci` for CI installs and keep the repo on npm unless the user explicitly asks to migrate package managers.
+
+If publishing fails with `npm error code ETARGET` for `xlsx@0.20.3`, do not change it to a registry version.
+In this repo `xlsx` 0.20.3 is intentionally installed from the SheetJS CDN tarball:
+`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`.
+Preserve that package.json dependency and ensure `package-lock.json` includes `resolved` and `integrity` for `node_modules/xlsx`.
+
+If GitHub Actions warns that Node.js 20 actions are deprecated, prefer updating official actions to Node 24-compatible major versions, such as `actions/checkout@v5` and `actions/setup-node@v5`, before changing the project Node runtime.
+
 ## Resources
 
 ### scripts/sync-fork.sh
