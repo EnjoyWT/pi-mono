@@ -143,6 +143,34 @@ describe("AgentSession prompt characterization", () => {
 		expect(sawImage).toBe(true);
 	});
 
+	it("attaches non-runtime prompt options to the emitted user message", async () => {
+		const harness = await createHarness();
+		harnesses.push(harness);
+
+		harness.setResponses([fauxAssistantMessage("ok")]);
+
+		await harness.session.prompt("describe", {
+			submissionId: "submission-1",
+			queueItemId: "queue-1",
+			images: [
+				{
+					type: "image",
+					mimeType: "image/png",
+					data: "ZmFrZQ==",
+				},
+			],
+		});
+
+		const userMessage = harness.session.messages[0];
+		expect(userMessage?.role).toBe("user");
+		if (userMessage?.role === "user") {
+			expect(userMessage.options).toEqual({
+				submissionId: "submission-1",
+				queueItemId: "queue-1",
+			});
+		}
+	});
+
 	it("expands skill commands before sending the prompt", async () => {
 		const tempDir = join(tmpdir(), `pi-skill-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 		mkdirSync(tempDir, { recursive: true });

@@ -391,6 +391,73 @@ describe("AgentSession queue characterization", () => {
 		expect(harness.session.pendingMessageCount).toBe(0);
 	});
 
+	it("preserves passthrough prompt options on queued user events", async () => {
+		let releaseToolExecution: (() => void) | undefined;
+		const toolRelease = new Promise<void>((resolve) => {
+			releaseToolExecution = resolve;
+		});
+		const harness = await createHarness({
+			tools: [
+				{
+					name: "wait",
+					label: "Wait",
+					description: "Wait for release",
+					parameters: Type.Object({}),
+					execute: async () => {
+						await toolRelease;
+						return {
+							content: [{ type: "text", text: "released" }],
+							details: {},
+						};
+					},
+				},
+			],
+		});
+		harnesses.push(harness);
+		const observedOptions: Array<Record<string, unknown> | undefined> = [];
+
+		harness.setResponses([
+			fauxAssistantMessage(fauxToolCall("wait", {}), { stopReason: "toolUse" }),
+			fauxAssistantMessage("done"),
+		]);
+
+		const waitForToolStart = new Promise<void>((resolve) => {
+			const unsubscribe = harness.session.subscribe((event) => {
+				if (event.type === "tool_execution_start" && event.toolName === "wait") {
+					unsubscribe();
+					resolve();
+				}
+			});
+		});
+
+		const promptPromise = harness.session.prompt("start");
+
+		harness.session.subscribe((event) => {
+			if (
+				(event.type === "queue_consumed" || event.type === "message_start" || event.type === "message_end") &&
+				event.message.role === "user" &&
+				getMessageText(event.message) === "queued"
+			) {
+				observedOptions.push(event.message.options);
+			}
+		});
+
+		await waitForToolStart;
+		await harness.session.prompt("queued", {
+			streamingBehavior: "steer",
+			submissionId: "submission-queued",
+			queueItemId: "queue-queued",
+		});
+		releaseToolExecution?.();
+		await promptPromise;
+
+		expect(observedOptions).toEqual([
+			{ submissionId: "submission-queued", queueItemId: "queue-queued" },
+			{ submissionId: "submission-queued", queueItemId: "queue-queued" },
+			{ submissionId: "submission-queued", queueItemId: "queue-queued" },
+		]);
+	});
+
 	it("throws when queueing an extension command with steer", async () => {
 		const harness = await createHarness({
 			extensionFactories: [

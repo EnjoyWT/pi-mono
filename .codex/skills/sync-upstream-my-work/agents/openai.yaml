@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Upstream + My Work"
+  short_description: "Sync upstream main into my-work safely"
+  default_prompt: "Use $sync-upstream-my-work to sync upstream/main into local main and merge it into my-work."
