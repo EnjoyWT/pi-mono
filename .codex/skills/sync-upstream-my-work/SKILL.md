@@ -145,6 +145,11 @@ Preserve that package.json dependency and ensure `package-lock.json` includes `r
 
 If GitHub Actions warns that Node.js 20 actions are deprecated, prefer updating official actions to Node 24-compatible major versions, such as `actions/checkout@v5` and `actions/setup-node@v5`, before changing the project Node runtime.
 
+If a Linux GitHub runner fails with a missing native package such as `@typescript/native-preview-linux-x64`, inspect `package-lock.json` for platform optional dependencies.
+This repo can have a lockfile generated on macOS that only records Darwin optional packages.
+Do not work around this by removing `tsgo` or downgrading TypeScript tooling.
+Ensure every package listed under any `optionalDependencies` entry has a corresponding lock entry, especially Linux x64 packages for `@typescript/native-preview`, `@biomejs/biome`, `esbuild`, `rollup`, `lightningcss`, and Tailwind oxide.
+
 ## Resources
 
 ### scripts/sync-fork.sh
