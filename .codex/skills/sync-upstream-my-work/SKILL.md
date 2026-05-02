@@ -145,10 +145,14 @@ Preserve that package.json dependency and ensure `package-lock.json` includes `r
 
 If GitHub Actions warns that Node.js 20 actions are deprecated, prefer updating official actions to Node 24-compatible major versions, such as `actions/checkout@v5` and `actions/setup-node@v5`, before changing the project Node runtime.
 
-If a Linux GitHub runner fails with a missing native package such as `@typescript/native-preview-linux-x64`, inspect `package-lock.json` for platform optional dependencies.
-This repo can have a lockfile generated on macOS that only records Darwin optional packages.
-Do not work around this by removing `tsgo` or downgrading TypeScript tooling.
-Ensure every package listed under any `optionalDependencies` entry has a corresponding lock entry, especially Linux x64 packages for `@typescript/native-preview`, `@biomejs/biome`, `esbuild`, `rollup`, `lightningcss`, and Tailwind oxide.
+The publishing target is GitHub's Linux runner.
+Before treating a sync or publishing change as ready, run `npm run check:lockfile` so the lockfile is verified for Linux native optional packages.
+The bundled sync script also runs `scripts/check-lockfile-platform-deps.mjs` during verification.
+The GitHub publish and CI workflows must keep this check after `npm ci` and before build steps.
+Do not work around missing native packages by removing `tsgo` or downgrading TypeScript tooling.
+Every package listed under any `optionalDependencies` entry must have a corresponding lock entry, especially Linux x64 packages for `@typescript/native-preview`, `@biomejs/biome`, `esbuild`, `rollup`, `lightningcss`, and Tailwind oxide.
+Package-level build configs must also match the APIs used by published packages.
+If a Node package source uses `fetch`, `Response`, or `ReadableStream` directly, make its `tsconfig.build.json` include the appropriate Web API types, such as `lib: ["ES2022", "DOM"]`, so GitHub package builds do not depend on root-check-only type resolution.
 
 ## Resources
 

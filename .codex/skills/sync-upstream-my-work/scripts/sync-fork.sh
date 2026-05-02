@@ -114,6 +114,15 @@ console.log("Fork package verification passed.");
 NODE
 }
 
+verify_lockfile_platform_deps() {
+	local checker="$repo_path/scripts/check-lockfile-platform-deps.mjs"
+	if [[ ! -f "$checker" ]]; then
+		echo "Missing scripts/check-lockfile-platform-deps.mjs" >&2
+		exit 1
+	fi
+	run_cmd node "$checker" "$repo_path"
+}
+
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--repo)
@@ -186,6 +195,7 @@ if [[ "$verify_only" == "true" ]]; then
 	fi
 	if [[ "$dry_run" == "false" ]]; then
 		verify_fork_config
+		verify_lockfile_platform_deps
 	fi
 	exit 0
 fi
@@ -210,6 +220,7 @@ fi
 
 if [[ "$dry_run" == "false" ]]; then
 	verify_fork_config
+	verify_lockfile_platform_deps
 fi
 
 echo

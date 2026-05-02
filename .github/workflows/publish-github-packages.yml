@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify lockfile platform dependencies
+        run: npm run check:lockfile
+
       - name: Build packages
         run: |
           npm --prefix packages/tui run build
