@@ -1,6 +1,6 @@
 {
 	"name": "@enjoywt/pi-ai",
-	"version": "0.72.0",
+	"version": "0.74.0",
 	"description": "Unified LLM API with automatic model discovery and provider configuration",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -97,9 +97,6 @@
 		"url": "git+https://github.com/EnjoyWT/pi-mono.git",
 		"directory": "packages/ai"
 	},
-	"publishConfig": {
-		"registry": "https://npm.pkg.github.com"
-	},
 	"engines": {
 		"node": ">=20.0.0"
 	},
@@ -107,5 +104,8 @@
 		"@types/node": "^24.3.0",
 		"canvas": "^3.2.0",
 		"vitest": "^3.2.4"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
 	}
 }

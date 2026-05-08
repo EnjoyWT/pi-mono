@@ -3,10 +3,16 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
+      "@earendil-works/pi-agent-core": ["../agent/dist/index.d.ts"],
+      "@earendil-works/pi-agent-core/*": ["../agent/dist/*"],
       "@mariozechner/pi-agent-core": ["../agent/dist/index.d.ts"],
       "@enjoywt/pi-agent-core": ["../agent/dist/index.d.ts"],
       "@mariozechner/pi-agent-core/*": ["../agent/dist/*"],
       "@enjoywt/pi-agent-core/*": ["../agent/dist/*"],
+      "@earendil-works/pi-ai": ["../ai/dist/index.d.ts"],
+      "@earendil-works/pi-ai/oauth": ["../ai/dist/oauth.d.ts"],
+      "@earendil-works/pi-ai/*": ["../ai/dist/*"],
+      "@earendil-works/pi-ai/dist/*": ["../ai/dist/*"],
       "@mariozechner/pi-ai": ["../ai/dist/index.d.ts"],
       "@enjoywt/pi-ai": ["../ai/dist/index.d.ts"],
       "@mariozechner/pi-ai/oauth": ["../ai/dist/oauth.d.ts"],
@@ -15,6 +21,8 @@
       "@enjoywt/pi-ai/*": ["../ai/dist/*"],
       "@mariozechner/pi-ai/dist/*": ["../ai/dist/*"],
       "@enjoywt/pi-ai/dist/*": ["../ai/dist/*"],
+      "@earendil-works/pi-tui": ["../tui/dist/index.d.ts"],
+      "@earendil-works/pi-tui/*": ["../tui/dist/*"],
       "@mariozechner/pi-tui": ["../tui/dist/index.d.ts"],
       "@mariozechner/pi-tui/*": ["../tui/dist/*"]
     }

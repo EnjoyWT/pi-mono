@@ -1,6 +1,6 @@
 {
 	"name": "@enjoywt/pi-agent-core",
-	"version": "0.72.0",
+	"version": "0.74.0",
 	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -17,7 +17,7 @@
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
-		"@enjoywt/pi-ai": "^0.72.0",
+		"@enjoywt/pi-ai": "^0.74.0",
 		"typebox": "^1.1.24"
 	},
 	"keywords": [
@@ -34,9 +34,6 @@
 		"url": "git+https://github.com/EnjoyWT/pi-mono.git",
 		"directory": "packages/agent"
 	},
-	"publishConfig": {
-		"registry": "https://npm.pkg.github.com"
-	},
 	"engines": {
 		"node": ">=20.0.0"
 	},
@@ -44,5 +41,8 @@
 		"@types/node": "^24.3.0",
 		"typescript": "^5.7.3",
 		"vitest": "^3.2.4"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
 	}
 }

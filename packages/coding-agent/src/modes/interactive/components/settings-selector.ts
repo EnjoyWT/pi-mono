@@ -1,5 +1,3 @@
-import type { ThinkingLevel } from "@enjoywt/pi-agent-core";
-import type { Transport } from "@enjoywt/pi-ai";
 import {
 	Container,
 	getCapabilities,
@@ -10,7 +8,9 @@ import {
 	SettingsList,
 	Spacer,
 	Text,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
+import type { ThinkingLevel } from "@enjoywt/pi-agent-core";
+import type { Transport } from "@enjoywt/pi-ai";
 import type { WarningSettings } from "../../../core/settings-manager.js";
 import { getSelectListTheme, getSettingsListTheme, theme } from "../theme/theme.js";
 import { DynamicBorder } from "./dynamic-border.js";

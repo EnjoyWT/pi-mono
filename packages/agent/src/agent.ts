@@ -219,7 +219,7 @@ export class Agent {
 		);
 		this.sessionId = options.sessionId;
 		this.thinkingBudgets = options.thinkingBudgets;
-		this.transport = options.transport ?? "sse";
+		this.transport = options.transport ?? "auto";
 		this.maxRetryDelayMs = options.maxRetryDelayMs;
 		this.toolExecution = options.toolExecution ?? "parallel";
 	}
