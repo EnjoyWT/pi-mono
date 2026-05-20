@@ -94,6 +94,17 @@ If merging `main` into `my-work` conflicts:
    For merge: `git commit`
    For rebase: `git rebase --continue`
 
+### Lockfile Merge Checklist
+
+When `package-lock.json` conflicts or package metadata changes:
+
+1. Do not keep a platform-pruned lockfile that only contains the current macOS native optional packages.
+2. Preserve or restore lock entries for every package listed under `optionalDependencies`, including non-current platforms.
+3. Run `npm run check:lockfile` before committing the merge.
+4. If the check reports missing entries for `@biomejs/biome`, `@typescript/native-preview`, `esbuild`, `rollup`, `lightningcss`, Tailwind oxide, or workspace optional native packages, fix `package-lock.json`; do not remove the check or downgrade tooling.
+5. Be aware that `npm install --package-lock-only` on macOS may leave the lockfile unchanged if it already considers the current platform satisfied. Verify from the check output, not from whether npm changed files.
+6. For workspace-local optional dependencies, ensure the check script recognizes sibling workspace paths such as `packages/coding-agent/node_modules/<native-package>`.
+
 For delete/modify conflicts, distinguish old upstream code from fork intent.
 If the fork only changed package metadata for a module that upstream deleted, accept upstream deletion.
 Do not keep removed modules merely because prior fork package-name rewrites touched their `package.json` files.
