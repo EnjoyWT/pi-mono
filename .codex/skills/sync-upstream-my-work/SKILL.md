@@ -43,6 +43,7 @@ Do not treat the task as finished unless all of these are true:
 2. Official updates are merged or rebased into `my-work`.
 3. Fork-specific GitHub Packages settings are still intact on `my-work`.
 4. Verification confirms the custom package names did not revert to official scope.
+5. Verification confirms published source imports use the fork package scope.
 
 ## Non-Negotiable Invariants
 
@@ -60,6 +61,9 @@ Preserve these exact publishing constraints on `my-work`:
 - `.github/workflows/publish-github-packages.yml` must still exist if the fork publishes through Actions
 
 When upstream changes touch package metadata, keep upstream functional changes and version bumps, but do not let package names or GitHub Packages registry settings fall back to `@mariozechner/*` or npmjs.org for these three packages.
+
+Published source under `packages/agent/src` and `packages/coding-agent/src` must import fork packages with `@enjoywt/*`, not `@earendil-works/*`.
+Docs, examples, and tests may keep official package scopes when they intentionally document or exercise external user-facing package names.
 
 ## Command
 
@@ -104,6 +108,17 @@ When `package-lock.json` conflicts or package metadata changes:
 4. If the check reports missing entries for `@biomejs/biome`, `@typescript/native-preview`, `esbuild`, `rollup`, `lightningcss`, Tailwind oxide, or workspace optional native packages, fix `package-lock.json`; do not remove the check or downgrade tooling.
 5. Be aware that `npm install --package-lock-only` on macOS may leave the lockfile unchanged if it already considers the current platform satisfied. Verify from the check output, not from whether npm changed files.
 6. For workspace-local optional dependencies, ensure the check script recognizes sibling workspace paths such as `packages/coding-agent/node_modules/<native-package>`.
+
+### Source Import Scope Checklist
+
+When merging upstream code into `my-work`:
+
+1. Replace official package imports in published source with the fork scope:
+   `@earendil-works/pi-ai` -> `@enjoywt/pi-ai`
+   `@earendil-works/pi-agent-core` -> `@enjoywt/pi-agent-core`
+2. Check at least `packages/agent/src` and `packages/coding-agent/src`; these paths participate in package builds and publishing.
+3. Do not rely only on package.json names. TypeScript can still fail if source imports reference the official package scope that is not installed.
+4. Run `.codex/skills/sync-upstream-my-work/scripts/sync-fork.sh --verify-only` before treating the sync as ready.
 
 For delete/modify conflicts, distinguish old upstream code from fork intent.
 If the fork only changed package metadata for a module that upstream deleted, accept upstream deletion.

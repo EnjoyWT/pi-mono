@@ -123,6 +123,16 @@ verify_lockfile_platform_deps() {
 	run_cmd node "$checker" "$repo_path"
 }
 
+verify_fork_source_imports() {
+	local matches
+	if matches=$(git -C "$repo_path" grep -n -E "from ['\"]@earendil-works/(pi-ai|pi-agent-core)(/[^'\"]*)?['\"]" -- packages/agent/src packages/coding-agent/src); then
+		echo "Published source imports must use @enjoywt/* package scopes on '$work_branch'." >&2
+		echo "$matches" >&2
+		exit 1
+	fi
+	echo "Fork source import verification passed."
+}
+
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--repo)
@@ -196,6 +206,7 @@ if [[ "$verify_only" == "true" ]]; then
 	if [[ "$dry_run" == "false" ]]; then
 		verify_fork_config
 		verify_lockfile_platform_deps
+		verify_fork_source_imports
 	fi
 	exit 0
 fi
@@ -221,6 +232,7 @@ fi
 if [[ "$dry_run" == "false" ]]; then
 	verify_fork_config
 	verify_lockfile_platform_deps
+	verify_fork_source_imports
 fi
 
 echo
