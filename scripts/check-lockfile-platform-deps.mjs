@@ -11,7 +11,13 @@ function dependencyPaths(parentPath, dependencyName) {
 	if (!parentPath) {
 		return [rootPath];
 	}
-	return [rootPath, `${parentPath}/node_modules/${dependencyName}`];
+	const paths = [rootPath, `${parentPath}/node_modules/${dependencyName}`];
+	const nestedNodeModules = "/node_modules/";
+	const nodeModulesIndex = parentPath.lastIndexOf(nestedNodeModules);
+	if (nodeModulesIndex !== -1) {
+		paths.push(`${parentPath.slice(0, nodeModulesIndex)}${nestedNodeModules}${dependencyName}`);
+	}
+	return [...new Set(paths)];
 }
 
 const missing = [];
