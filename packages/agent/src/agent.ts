@@ -8,7 +8,7 @@ import {
 	type ThinkingBudgets,
 	type Transport,
 } from "@enjoywt/pi-ai";
-import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
+import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.ts";
 import type {
 	AfterToolCallContext,
 	AfterToolCallResult,
@@ -23,9 +23,12 @@ import type {
 	BeforeToolCallResult,
 	QueueDelivery,
 	QueuedAgentMessage,
+	QueueMode,
 	StreamFn,
 	ToolExecutionMode,
-} from "./types.js";
+} from "./types.ts";
+
+export type { QueueMode } from "./types.ts";
 
 function defaultConvertToLlm(messages: AgentMessage[]): Message[] {
 	return messages.filter(
@@ -54,8 +57,6 @@ const DEFAULT_MODEL = {
 	contextWindow: 0,
 	maxTokens: 0,
 } satisfies Model<any>;
-
-export type QueueMode = "all" | "one-at-a-time";
 
 type MutableAgentState = Omit<AgentState, "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
 	isStreaming: boolean;
@@ -118,12 +119,15 @@ export interface AgentOptions {
 
 class PendingMessageQueue {
 	private messages: QueuedAgentMessage[] = [];
+	public mode: QueueMode;
+	private readonly delivery: QueueDelivery;
+	private readonly nextId: () => string;
 
-	constructor(
-		public mode: QueueMode,
-		private readonly delivery: QueueDelivery,
-		private readonly nextId: () => string,
-	) {}
+	constructor(mode: QueueMode, delivery: QueueDelivery, nextId: () => string) {
+		this.mode = mode;
+		this.delivery = delivery;
+		this.nextId = nextId;
+	}
 
 	enqueue(message: AgentMessage): QueuedAgentMessage {
 		const queuedMessage: QueuedAgentMessage = {
