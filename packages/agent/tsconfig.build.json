@@ -3,6 +3,10 @@
 	"compilerOptions": {
 		"lib": ["ES2022", "DOM"],
 		"outDir": "./dist",
+		"paths": {
+			"@earendil-works/pi-ai": ["../ai/dist/index.d.ts"],
+			"@earendil-works/pi-ai/*": ["../ai/dist/*.d.ts", "../ai/dist/providers/*.d.ts"]
+		},
 		"rootDir": "./src"
 	},
 	"include": ["src/**/*.ts"],

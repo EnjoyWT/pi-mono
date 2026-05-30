@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { Agent, type AgentMessage, type ThinkingLevel } from "@enjoywt/pi-agent-core";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "@enjoywt/pi-ai";
 import { getAgentDir } from "../config.ts";
+import { resolvePath } from "../utils/paths.ts";
 import { AgentSession } from "./agent-session.ts";
 import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
 import { AuthStorage } from "./auth-storage.ts";
@@ -64,6 +65,8 @@ export interface CreateAgentSessionOptions {
 	 * When provided, only the listed tool names are enabled.
 	 */
 	tools?: string[];
+	/** Optional denylist of tool names to disable. Applies after `tools` when both are provided. */
+	excludeTools?: string[];
 	/** Custom tools to register (in addition to built-in tools). */
 	customTools?: ToolDefinition[];
 
@@ -128,7 +131,15 @@ function getDefaultAgentDir(): string {
 function getAttributionHeaders(
 	model: Model<any>,
 	settingsManager: SettingsManager,
+	sessionId?: string,
 ): Record<string, string> | undefined {
+	if (
+		sessionId &&
+		(model.provider === "opencode" || model.provider === "opencode-go" || model.baseUrl.includes("opencode.ai"))
+	) {
+		return { "x-opencode-session": sessionId, "x-opencode-client": "pi" };
+	}
+
 	if (!isInstallTelemetryEnabled(settingsManager)) {
 		return undefined;
 	}
@@ -191,8 +202,8 @@ function getAttributionHeaders(
  * ```
  */
 export async function createAgentSession(options: CreateAgentSessionOptions = {}): Promise<CreateAgentSessionResult> {
-	const cwd = options.cwd ?? options.sessionManager?.getCwd() ?? process.cwd();
-	const agentDir = options.agentDir ?? getDefaultAgentDir();
+	const cwd = resolvePath(options.cwd ?? options.sessionManager?.getCwd() ?? process.cwd());
+	const agentDir = options.agentDir ? resolvePath(options.agentDir) : getDefaultAgentDir();
 	let resourceLoader = options.resourceLoader;
 
 	// Use provided or create AuthStorage and ModelRegistry
@@ -270,11 +281,11 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 
 	const defaultActiveToolNames: ToolName[] = ["read", "bash", "edit", "write"];
 	const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
-	const initialActiveToolNames: string[] = options.tools
-		? [...options.tools]
-		: options.noTools
-			? []
-			: defaultActiveToolNames;
+	const excludedToolNames = options.excludeTools;
+	const excludedToolNameSet = excludedToolNames ? new Set(excludedToolNames) : undefined;
+	const initialActiveToolNames: string[] = (
+		options.tools ? [...options.tools] : options.noTools ? [] : defaultActiveToolNames
+	).filter((name) => !excludedToolNameSet?.has(name));
 
 	let agent: Agent;
 
@@ -331,11 +342,18 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				throw new Error(auth.error);
 			}
 			const providerRetrySettings = settingsManager.getProviderRetrySettings();
-			const attributionHeaders = getAttributionHeaders(model, settingsManager);
+			const timeoutMs =
+				options?.timeoutMs ??
+				providerRetrySettings.timeoutMs ??
+				(model.api === "openai-codex-responses" ? settingsManager.getHttpIdleTimeoutMs() : undefined);
+			const websocketConnectTimeoutMs =
+				options?.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs();
+			const attributionHeaders = getAttributionHeaders(model, settingsManager, options?.sessionId);
 			return streamSimple(model, context, {
 				...options,
 				apiKey: auth.apiKey,
-				timeoutMs: options?.timeoutMs ?? providerRetrySettings.timeoutMs,
+				timeoutMs,
+				websocketConnectTimeoutMs,
 				maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
 				maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
 				headers:
@@ -400,6 +418,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		modelRegistry,
 		initialActiveToolNames,
 		allowedToolNames,
+		excludedToolNames,
 		extensionRunnerRef,
 		sessionStartEvent: options.sessionStartEvent,
 	});

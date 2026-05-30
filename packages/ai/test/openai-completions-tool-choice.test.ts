@@ -1,9 +1,9 @@
 import { Type } from "typebox";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getModel } from "../src/models.js";
-import { convertMessages } from "../src/providers/openai-completions.js";
-import { streamSimple } from "../src/stream.js";
-import type { AssistantMessage, Model, Tool, ToolResultMessage } from "../src/types.js";
+import { getModel } from "../src/models.ts";
+import { convertMessages } from "../src/providers/openai-completions.ts";
+import { streamSimple } from "../src/stream.ts";
+import type { AssistantMessage, Model, Tool, ToolResultMessage } from "../src/types.ts";
 
 const mockState = vi.hoisted(() => ({
 	lastParams: undefined as unknown,
@@ -993,6 +993,73 @@ describe("openai-completions tool_choice", () => {
 
 		expect(messages[0]).toMatchObject({ role: "assistant", reasoning_content: "think" });
 		expect(messages[0]).not.toHaveProperty("reasoning");
+	});
+
+	it("sends thinking disabled for OpenCode Go Kimi K2.6 when thinking is off", async () => {
+		const model = getModel("opencode-go", "kimi-k2.6")!;
+		let payload: unknown;
+
+		await streamSimple(
+			model,
+			{
+				messages: [{ role: "user", content: "Hi", timestamp: Date.now() }],
+			},
+			{
+				apiKey: "test",
+				onPayload: (params: unknown) => {
+					payload = params;
+				},
+			},
+		).result();
+
+		const params = (payload ?? mockState.lastParams) as { thinking?: unknown; reasoning_effort?: string };
+		expect(params.thinking).toEqual({ type: "disabled" });
+		expect(params.reasoning_effort).toBeUndefined();
+	});
+
+	it("sends thinking enabled for OpenCode Go Kimi K2.6 when thinking is enabled", async () => {
+		const model = getModel("opencode-go", "kimi-k2.6")!;
+		let payload: unknown;
+
+		await streamSimple(
+			model,
+			{
+				messages: [{ role: "user", content: "Hi", timestamp: Date.now() }],
+			},
+			{
+				apiKey: "test",
+				reasoning: "high",
+				onPayload: (params: unknown) => {
+					payload = params;
+				},
+			},
+		).result();
+
+		const params = (payload ?? mockState.lastParams) as { thinking?: unknown; reasoning_effort?: string };
+		expect(params.thinking).toEqual({ type: "enabled" });
+		expect(params.reasoning_effort).toBeUndefined();
+	});
+
+	it("omits reasoning effort for OpenCode Grok Build", async () => {
+		const model = getModel("opencode", "grok-build-0.1")!;
+		let payload: unknown;
+
+		await streamSimple(
+			model,
+			{
+				messages: [{ role: "user", content: "Hi", timestamp: Date.now() }],
+			},
+			{
+				apiKey: "test",
+				reasoning: "high",
+				onPayload: (params: unknown) => {
+					payload = params;
+				},
+			},
+		).result();
+
+		const params = (payload ?? mockState.lastParams) as { reasoning_effort?: string };
+		expect(params.reasoning_effort).toBeUndefined();
 	});
 
 	it("does not double-count reasoning tokens in completion usage", async () => {
