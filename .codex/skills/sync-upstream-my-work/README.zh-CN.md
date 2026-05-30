@@ -84,13 +84,38 @@ git push origin my-work
 4. 如果内部依赖版本被上游更新，保留新的版本号，但依赖包名仍要指向对应的 `@enjoywt/*` 包。
 5. 如果冲突是官方删除模块、本地只改过包元数据，通常接受官方删除。
 6. 冲突解决后显式添加你处理过的文件，例如 `git add packages/ai/package.json`。
-7. 继续完成 merge commit。
+7. 继续完成 merge commit（见下文 **完成合并提交**）。
 
 如果冲突涉及源码或测试文件，提交前运行：
 
 ```bash
 npm run check
 ```
+
+### 完成合并提交
+
+把官方 `main` 合并进 `my-work` 后，本地会跑上游自带的 **Husky pre-commit**（`.husky/pre-commit`），合并提交也不例外。
+
+常见报错与处理：
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| `node: command not found`（退出码 127） | SourceTree 等 GUI 的 `PATH` 里没有 Homebrew/`/usr/local/bin` | 用终端提交，或在 GUI 里把 `/opt/homebrew/bin:/usr/local/bin` 加到 `PATH` 最前面 |
+| 提示 `PI_ALLOW_LOCKFILE_CHANGE=1`（退出码 1） | `scripts/check-lockfile-commit.mjs` 要求你确认 lockfile 里的外部依赖变更 | 看过 lockfile diff 且跑过 `npm run check:lockfile` 后，用 `PI_ALLOW_LOCKFILE_CHANGE=1 git commit` 完成合并 |
+| pre-commit 里 `Checks failed` | `npm run check`（格式、类型、shrinkwrap、可能还有 browser smoke）未通过 | 按报错修完再提交；若仍暂存了 `package-lock.json`，仍需加 `PI_ALLOW_LOCKFILE_CHANGE=1` |
+
+**何时必须加环境变量：** 暂存区包含 `package-lock.json`，且变更涉及 npm 注册表上的外部包（合并官方后通常如此）。若 lockfile 只改了 `packages/*` 工作区包元数据，脚本会自动放行，不需要环境变量。
+
+**冲突解决后推荐命令：**
+
+```bash
+npm run check:lockfile
+PI_ALLOW_LOCKFILE_CHANGE=1 git commit
+```
+
+保留默认合并说明可加 `--no-edit`。`sync-fork.sh` 在无冲突的 `git merge` 时会自动带上 `PI_ALLOW_LOCKFILE_CHANGE=1`；有冲突、手动 `git add` 之后要自己加。
+
+**为什么以前没碰到：** 这是上游在约 v0.75.x 依赖加固时新加的提交门禁（`check-lockfile-commit.mjs` + 更完整的 pre-commit）。本次把 `main` 合进 `my-work` 之前，fork 本地还没有这套 hook。
 
 ### 保留还是删除的判断规则
 

@@ -223,8 +223,26 @@ fi
 
 run_cmd git -C "$repo_path" switch "$work_branch"
 
+merge_commit_help() {
+	cat >&2 <<'EOF'
+
+Merge into my-work needs a manual commit (conflicts resolved or hook blocked).
+
+  npm run check:lockfile
+  PI_ALLOW_LOCKFILE_CHANGE=1 git commit
+
+If pre-commit reports "node: command not found", commit from a terminal or fix PATH in your Git GUI.
+See .codex/skills/sync-upstream-my-work/SKILL.md ("Completing the merge commit").
+EOF
+}
+
 if [[ "$strategy" == "merge" ]]; then
-	run_cmd git -C "$repo_path" merge "$main_branch"
+	if [[ "$dry_run" == "true" ]]; then
+		run_cmd env PI_ALLOW_LOCKFILE_CHANGE=1 git -C "$repo_path" merge "$main_branch"
+	elif ! env PI_ALLOW_LOCKFILE_CHANGE=1 git -C "$repo_path" merge "$main_branch"; then
+		merge_commit_help
+		exit 1
+	fi
 else
 	run_cmd git -C "$repo_path" rebase "$main_branch"
 fi

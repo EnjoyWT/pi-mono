@@ -94,9 +94,32 @@ If merging `main` into `my-work` conflicts:
 4. Rebuild lockfiles or regenerate derived files when package identity changes require it.
 5. Run verification before concluding the merge.
 6. Stage the resolved files with explicit `git add <path>` commands.
-7. Continue the in-progress operation:
-   For merge: `git commit`
-   For rebase: `git rebase --continue`
+7. Continue the in-progress operation (see **Completing the merge commit** below).
+
+### Completing the merge commit
+
+Upstream ships a Husky **pre-commit** hook (`.husky/pre-commit`) that runs on every commit, including merge commits after syncing `main` into `my-work`.
+
+Typical failures and fixes:
+
+| Symptom | Cause | Fix |
+|--------|--------|-----|
+| `node: command not found` (exit 127) | GUI Git clients (e.g. SourceTree) use a minimal `PATH` without Homebrew/`/usr/local/bin` | Commit from a terminal, or prepend `/opt/homebrew/bin:/usr/local/bin` to `PATH` in the GUI client settings |
+| `package-lock.json is staged` / `PI_ALLOW_LOCKFILE_CHANGE=1` (exit 1) | `scripts/check-lockfile-commit.mjs` blocks lockfile commits until dependency changes are explicitly acknowledged | After reviewing lockfile diffs and running `npm run check:lockfile`, finish the merge with `PI_ALLOW_LOCKFILE_CHANGE=1 git commit` |
+| `Checks failed` during pre-commit | `npm run check` (format, types, shrinkwrap, optional browser smoke) failed | Fix reported errors, re-stage, commit again (lockfile override still required if `package-lock.json` is staged) |
+
+**When the env var is required:** Any commit that stages `package-lock.json` with changes to external registry packages (normal after merging upstream). It is **not** required when the only lockfile diffs are workspace package metadata under `packages/*` (the script allows those automatically).
+
+**Recommended finish after conflict resolution:**
+
+```bash
+npm run check:lockfile
+PI_ALLOW_LOCKFILE_CHANGE=1 git commit
+```
+
+Use `--no-edit` to keep the default merge message. The bundled `sync-fork.sh` sets `PI_ALLOW_LOCKFILE_CHANGE=1` for a **clean** `git merge` (no conflicts); you must set it yourself for the manual commit after resolving conflicts.
+
+**Why this may be new:** Upstream added the lockfile commit guard and expanded pre-commit checks in the dependency-hardening work (around v0.75.x). Forks that had not merged that line yet did not run these hooks locally.
 
 ### Lockfile Merge Checklist
 
@@ -105,9 +128,10 @@ When `package-lock.json` conflicts or package metadata changes:
 1. Do not keep a platform-pruned lockfile that only contains the current macOS native optional packages.
 2. Preserve or restore lock entries for every package listed under `optionalDependencies`, including non-current platforms.
 3. Run `npm run check:lockfile` before committing the merge.
-4. If the check reports missing entries for `@biomejs/biome`, `@typescript/native-preview`, `esbuild`, `rollup`, `lightningcss`, Tailwind oxide, or workspace optional native packages, fix `package-lock.json`; do not remove the check or downgrade tooling.
-5. Be aware that `npm install --package-lock-only` on macOS may leave the lockfile unchanged if it already considers the current platform satisfied. Verify from the check output, not from whether npm changed files.
-6. For workspace-local optional dependencies, ensure the check script recognizes sibling workspace paths such as `packages/coding-agent/node_modules/<native-package>`.
+4. Commit with `PI_ALLOW_LOCKFILE_CHANGE=1` when `package-lock.json` is staged (see **Completing the merge commit**).
+5. If the check reports missing entries for `@biomejs/biome`, `@typescript/native-preview`, `esbuild`, `rollup`, `lightningcss`, Tailwind oxide, or workspace optional native packages, fix `package-lock.json`; do not remove the check or downgrade tooling.
+6. Be aware that `npm install --package-lock-only` on macOS may leave the lockfile unchanged if it already considers the current platform satisfied. Verify from the check output, not from whether npm changed files.
+7. For workspace-local optional dependencies, ensure the check script recognizes sibling workspace paths such as `packages/coding-agent/node_modules/<native-package>`.
 
 ### Source Import Scope Checklist
 
