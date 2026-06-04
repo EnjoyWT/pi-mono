@@ -44,17 +44,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish @enjoywt/pi-ai
-        run: npm publish --workspace packages/ai
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish @enjoywt/pi-agent-core
-        run: npm publish --workspace packages/agent
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish @enjoywt/pi-coding-agent
-        run: npm publish --workspace packages/coding-agent
+      - name: Publish GitHub Packages
+        run: node scripts/publish-github-packages.mjs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
