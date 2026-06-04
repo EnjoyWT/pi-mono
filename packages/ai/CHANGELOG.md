@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a model metadata package entry point at `@enjoywt/pi-ai/models` for browser bundles that do not need credential helpers.
+
 ## [0.78.0] - 2026-05-29
 
 ### Breaking Changes

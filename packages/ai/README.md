@@ -806,7 +806,7 @@ A **provider** offers models through a specific API. For example:
 ### Querying Providers and Models
 
 ```typescript
-import { getProviders, getModels, getModel } from '@earendil-works/pi-ai';
+import { getProviders, getModels, getModel } from '@earendil-works/pi-ai/models';
 
 // Get all available providers
 const providers = getProviders();
@@ -1087,6 +1087,7 @@ const response = await complete(model, {
 
 ### Browser Compatibility Notes
 
+- Browser bundles that only need model metadata should import `getModel`, `getModels`, and `getProviders` from `@earendil-works/pi-ai/models`.
 - Amazon Bedrock (`bedrock-converse-stream`) is not supported in browser environments.
 - OAuth login flows are not supported in browser environments. Use the `@earendil-works/pi-ai/oauth` entry point in Node.js.
 - In browser builds, Bedrock can still appear in model lists. Calls to Bedrock models fail at runtime.

@@ -168,6 +168,8 @@ Third party runtime dependencies belong in `dependencies` in `package.json`. Dep
 
 Pi bundles core packages for extensions and skills. If you import any of these, list them in `peerDependencies` with a `"*"` range and do not bundle them: `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`.
 
+For browser-bundled extension or skill code that only needs model metadata, import `getModel`, `getModels`, and `getProviders` from `@earendil-works/pi-ai/models` instead of the top-level `@earendil-works/pi-ai` entry point.
+
 Other pi packages must be bundled in your tarball. Add them to `dependencies` and `bundledDependencies`, then reference their resources through `node_modules/` paths. Pi loads packages with separate module roots, so separate installs do not collide or share modules.
 
 Example:
