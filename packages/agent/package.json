@@ -1,6 +1,6 @@
 {
 	"name": "@enjoywt/pi-agent-core",
-	"version": "0.78.0",
+	"version": "0.79.0",
 	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -32,7 +32,7 @@
 		"ignore": "7.0.5",
 		"typebox": "1.1.38",
 		"yaml": "2.9.0",
-		"@enjoywt/pi-ai": "0.78.0"
+		"@enjoywt/pi-ai": "0.79.0"
 	},
 	"keywords": [
 		"ai",
