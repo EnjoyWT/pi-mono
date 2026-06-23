@@ -76,16 +76,21 @@ const required = [
 		file: "packages/agent/package.json",
 		name: "@enjoywt/pi-agent-core",
 		registry: "https://npm.pkg.github.com",
+		prepare: "npm --prefix ../ai run build:git && npm run build",
 	},
 	{
 		file: "packages/ai/package.json",
 		name: "@enjoywt/pi-ai",
 		registry: "https://npm.pkg.github.com",
+		prepare: "npm run build:git",
+		buildGit: "tsgo -p tsconfig.build.json",
 	},
 	{
 		file: "packages/coding-agent/package.json",
 		name: "@enjoywt/pi-coding-agent",
 		registry: "https://npm.pkg.github.com",
+		prepare:
+			"npm --prefix ../tui install --ignore-scripts && npm --prefix ../tui run build && npm --prefix ../ai run build:git && npm --prefix ../agent run build && npm run build",
 	},
 ];
 
@@ -102,11 +107,41 @@ for (const item of required) {
 		);
 		process.exit(1);
 	}
+	if (parsed.scripts?.prepare !== item.prepare) {
+		console.error(`${item.file}: expected Git prepare script ${item.prepare}`);
+		process.exit(1);
+	}
+	if (item.buildGit && parsed.scripts?.["build:git"] !== item.buildGit) {
+		console.error(`${item.file}: expected build:git script ${item.buildGit}`);
+		process.exit(1);
+	}
+	if (parsed.devDependencies?.["@typescript/native-preview"] !== "7.0.0-dev.20260120.1") {
+		console.error(`${item.file}: expected @typescript/native-preview devDependency for Git prepare builds`);
+		process.exit(1);
+	}
 }
 
-const workflow = path.join(repo, ".github/workflows/publish-github-packages.yml");
-if (!fs.existsSync(workflow)) {
-	console.error("Missing .github/workflows/publish-github-packages.yml");
+const rootPackage = JSON.parse(fs.readFileSync(path.join(repo, "package.json"), "utf8"));
+if (rootPackage.scripts?.prepare !== "husky || true") {
+	console.error("package.json: expected prepare script to be 'husky || true' so Git dependency installs do not fail without husky");
+	process.exit(1);
+}
+
+const codingPackage = JSON.parse(fs.readFileSync(path.join(repo, "packages/coding-agent/package.json"), "utf8"));
+if (codingPackage.dependencies?.["@earendil-works/pi-tui"] !== "0.79.0") {
+	console.error("packages/coding-agent/package.json: expected runtime dependency @earendil-works/pi-tui@0.79.0");
+	process.exit(1);
+}
+
+const agentTsconfig = JSON.parse(fs.readFileSync(path.join(repo, "packages/agent/tsconfig.build.json"), "utf8"));
+if (!agentTsconfig.compilerOptions?.paths?.["@enjoywt/pi-ai"]) {
+	console.error("packages/agent/tsconfig.build.json: expected @enjoywt/pi-ai path mapping");
+	process.exit(1);
+}
+
+const codingTsconfig = JSON.parse(fs.readFileSync(path.join(repo, "packages/coding-agent/tsconfig.build.json"), "utf8"));
+if (!codingTsconfig.compilerOptions?.paths?.["@enjoywt/pi-agent-core"] || !codingTsconfig.compilerOptions?.paths?.["@enjoywt/pi-ai"]) {
+	console.error("packages/coding-agent/tsconfig.build.json: expected @enjoywt/* path mappings");
 	process.exit(1);
 }
 

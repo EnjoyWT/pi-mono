@@ -67,8 +67,10 @@
 		"generate-models": "node scripts/generate-models.ts",
 		"generate-image-models": "node scripts/generate-image-models.ts",
 		"build": "npm run generate-models && npm run generate-image-models && tsgo -p tsconfig.build.json",
+		"build:git": "tsgo -p tsconfig.build.json",
 		"test": "vitest --run",
-		"prepublishOnly": "npm run clean && npm run build"
+		"prepublishOnly": "npm run clean && npm run build",
+		"prepare": "npm run build:git"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "0.91.1",
@@ -103,6 +105,7 @@
 		"node": ">=22.19.0"
 	},
 	"devDependencies": {
+		"@typescript/native-preview": "7.0.0-dev.20260120.1",
 		"@types/node": "24.12.4",
 		"canvas": "3.2.3",
 		"vitest": "3.2.4"

@@ -3,6 +3,7 @@
 本文档用于当前 fork 的长期维护：官方仓库持续更新，本项目只保留少量定制源码、包名和 GitHub Packages 发布配置。
 
 同步的主要目的不是永久保留所有历史包或所有本地文件，而是让本项目尽量贴近官方最新代码，同时保留明确属于本项目的定制：`@enjoywt/*` 包名、GitHub Packages 发布配置，以及确实需要保留的源码级改动。
+本 fork 还需要支持公开仓库通过 Git dependency 安装 `@enjoywt/*` 包，这样下游公开仓库不需要提交 GitHub Packages token。
 
 ## 分支约定
 
@@ -66,12 +67,57 @@ git push origin my-work
 - `packages/ai/package.json` 的 `name` 是 `@enjoywt/pi-ai`。
 - `packages/coding-agent/package.json` 的 `name` 是 `@enjoywt/pi-coding-agent`。
 - 上面三个包的 `publishConfig.registry` 都是 `https://npm.pkg.github.com`。
-- `.github/workflows/publish-github-packages.yml` 仍然存在。
+- 发布通过 `scripts/publish.mjs` 或手动触发的 workflow 完成。
+- Git dependency 安装能力必须保留：三个 `@enjoywt/*` 包要有 `prepare` 脚本，`packages/ai` 要有不联网的 `build:git`，相关 `tsconfig.build.json` 要指向 `@enjoywt/*` 的 sibling `dist`。
+- `packages/coding-agent/package.json` 必须保留运行时依赖 `@earendil-works/pi-tui`，因为 `coding-agent` 编译后的代码会 import 这个公开包。
 
 可以随时单独运行校验：
 
 ```bash
 .codex/skills/sync-upstream-my-work/scripts/sync-fork.sh --verify-only
+```
+
+## 公开仓库使用 Git dependency
+
+公开仓库不要提交 GitHub Packages token。需要安装本 fork 的包时，在下游项目中使用 Git URL，并用 `pnpm.overrides` 把传递依赖也固定到同一个 Git ref：
+
+```json
+{
+  "dependencies": {
+    "@enjoywt/pi-ai": "github:EnjoyWT/pi-mono#my-work&path:/packages/ai",
+    "@enjoywt/pi-agent-core": "github:EnjoyWT/pi-mono#my-work&path:/packages/agent",
+    "@enjoywt/pi-coding-agent": "github:EnjoyWT/pi-mono#my-work&path:/packages/coding-agent"
+  },
+  "pnpm": {
+    "overrides": {
+      "@enjoywt/pi-ai": "github:EnjoyWT/pi-mono#my-work&path:/packages/ai",
+      "@enjoywt/pi-agent-core": "github:EnjoyWT/pi-mono#my-work&path:/packages/agent",
+      "@enjoywt/pi-coding-agent": "github:EnjoyWT/pi-mono#my-work&path:/packages/coding-agent"
+    }
+  }
+}
+```
+
+pnpm 10 还需要允许这三个 Git 包运行 `prepare`。在下游项目的 `pnpm-workspace.yaml` 中加入：
+
+```yaml
+onlyBuiltDependencies:
+  - "@enjoywt/pi-ai"
+  - "@enjoywt/pi-agent-core"
+  - "@enjoywt/pi-coding-agent"
+```
+
+如果 token 曾经出现在公开仓库、日志或 issue 里，立即去 GitHub 旋转 token。
+
+修改 Git dependency 支持后，从仓库外做 smoke test：
+
+```bash
+rm -rf /tmp/pi-gitdep-smoke
+mkdir -p /tmp/pi-gitdep-smoke
+cd /tmp/pi-gitdep-smoke
+# 按上面的片段创建 package.json、.npmrc 和 pnpm-workspace.yaml
+pnpm install
+node -e "Promise.all([import('@enjoywt/pi-ai'), import('@enjoywt/pi-agent-core'), import('@enjoywt/pi-coding-agent')]).then(() => console.log('imports ok'))"
 ```
 
 ## 冲突处理
@@ -125,8 +171,7 @@ PI_ALLOW_LOCKFILE_CHANGE=1 git commit
 
 - `packages/agent`、`packages/ai`、`packages/coding-agent` 三个包的 `@enjoywt/*` 包名。
 - 这三个包的 `publishConfig.registry = https://npm.pkg.github.com`。
-- `.github/workflows/publish-github-packages.yml` 等 fork 发布相关配置。
-- 明确属于本项目的源码级功能改动，例如队列行为、prompt metadata、submission 相关字段。
+- 明确属于本项目的源码级功能改动（队列行为、prompt metadata、submission 相关字段等）。
 - `.codex/skills/sync-upstream-my-work/` 下的同步技能和说明。
 
 通常接受官方变更或删除：
@@ -147,21 +192,7 @@ git show --stat --oneline <fork-commit>
 
 ## 是否需要到 GitHub 手动编译包
 
-当前 `.github/workflows/publish-github-packages.yml` 只配置了：
-
-```yaml
-on:
-  workflow_dispatch:
-```
-
-这表示发布包不会在 push 后自动运行。需要发布新包时，要到 GitHub 手动触发 workflow：
-
-1. 先把同步后的 `my-work` 推送到 `origin/my-work`。
-2. 打开 GitHub 仓库的 `Actions` 页面。
-3. 选择 `Publish GitHub Packages`。
-4. 点击 `Run workflow`。
-5. 分支选择 `my-work`。
-6. 运行 workflow。
+发布包不再使用独立的 workflow 文件。通过 `scripts/publish.mjs` 脚本或手动触发 CI 完成发布。
 
 不需要在本地手动编译包。这个 workflow 会在 GitHub Actions 中安装依赖、构建 `packages/tui`、`packages/ai`、`packages/agent`、`packages/coding-agent`，然后发布三个 `@enjoywt/*` 包到 GitHub Packages。
 

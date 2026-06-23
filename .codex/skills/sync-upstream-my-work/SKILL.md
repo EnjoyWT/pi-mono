@@ -13,6 +13,7 @@ Use the bundled script for the default workflow so branch switching, fast-forwar
 The primary goal is not to keep every historical package or local file forever.
 The goal is to keep the fork close to official upstream while preserving the small set of intentional fork changes: package identities, GitHub Packages publishing, and explicitly requested source-level customizations.
 When upstream removes old official modules that the fork did not intentionally customize, accept the upstream removal.
+This fork also supports public Git dependency installs for the `@enjoywt/*` packages so downstream public repos can install without a GitHub Packages token.
 
 ## Workflow
 
@@ -44,6 +45,7 @@ Do not treat the task as finished unless all of these are true:
 3. Fork-specific GitHub Packages settings are still intact on `my-work`.
 4. Verification confirms the custom package names did not revert to official scope.
 5. Verification confirms published source imports use the fork package scope.
+6. Verification confirms Git dependency install support is still intact for public downstream repos.
 
 ## Non-Negotiable Invariants
 
@@ -58,9 +60,21 @@ Preserve these exact publishing constraints on `my-work`:
 - `packages/agent/package.json`: `publishConfig.registry = https://npm.pkg.github.com`
 - `packages/ai/package.json`: `publishConfig.registry = https://npm.pkg.github.com`
 - `packages/coding-agent/package.json`: `publishConfig.registry = https://npm.pkg.github.com`
-- `.github/workflows/publish-github-packages.yml` must still exist if the fork publishes through Actions
+- Fork publishing uses the committed `scripts/publish.mjs` or manual GitHub Packages workflow; no workflow file is required in the repo
+
+Preserve these exact Git dependency install constraints on `my-work`:
+
+- Root `package.json`: `scripts.prepare = "husky || true"` so Git package preparation does not fail when Husky is unavailable.
+- `packages/ai/package.json`: `scripts.build:git = "tsgo -p tsconfig.build.json"` and `scripts.prepare = "npm run build:git"`.
+- `packages/agent/package.json`: `scripts.prepare = "npm --prefix ../ai run build:git && npm run build"`.
+- `packages/coding-agent/package.json`: `scripts.prepare = "npm --prefix ../tui install --ignore-scripts && npm --prefix ../tui run build && npm --prefix ../ai run build:git && npm --prefix ../agent run build && npm run build"`.
+- `packages/ai`, `packages/agent`, and `packages/coding-agent` package metadata include `@typescript/native-preview` as a dev dependency, because Git package preparation runs package-local builds.
+- `packages/coding-agent/package.json` includes runtime dependency `@earendil-works/pi-tui` at the lockstep version.
+- `packages/agent/tsconfig.build.json` maps `@enjoywt/pi-ai` to `../ai/dist`.
+- `packages/coding-agent/tsconfig.build.json` maps `@enjoywt/pi-agent-core` and `@enjoywt/pi-ai` to sibling `dist` outputs while keeping `@earendil-works/pi-tui` mapped to `../tui/dist`.
 
 When upstream changes touch package metadata, keep upstream functional changes and version bumps, but do not let package names or GitHub Packages registry settings fall back to `@mariozechner/*` or npmjs.org for these three packages.
+Do not replace the Git dependency support with a GitHub Packages token. Tokens must never be committed to public repos.
 
 Published source under `packages/agent/src` and `packages/coding-agent/src` must import fork packages with `@enjoywt/*`, not `@earendil-works/*`.
 Docs, examples, and tests may keep official package scopes when they intentionally document or exercise external user-facing package names.
@@ -144,6 +158,49 @@ When merging upstream code into `my-work`:
 3. Do not rely only on package.json names. TypeScript can still fail if source imports reference the official package scope that is not installed.
 4. Run `.codex/skills/sync-upstream-my-work/scripts/sync-fork.sh --verify-only` before treating the sync as ready.
 
+### Public Git Dependency Checklist
+
+When a public downstream repo needs these packages without a GitHub Packages token, use Git dependencies and force transitive `@enjoywt/*` deps to the same Git refs:
+
+```json
+{
+	"dependencies": {
+		"@enjoywt/pi-ai": "github:EnjoyWT/pi-mono#my-work&path:/packages/ai",
+		"@enjoywt/pi-agent-core": "github:EnjoyWT/pi-mono#my-work&path:/packages/agent",
+		"@enjoywt/pi-coding-agent": "github:EnjoyWT/pi-mono#my-work&path:/packages/coding-agent"
+	},
+	"pnpm": {
+		"overrides": {
+			"@enjoywt/pi-ai": "github:EnjoyWT/pi-mono#my-work&path:/packages/ai",
+			"@enjoywt/pi-agent-core": "github:EnjoyWT/pi-mono#my-work&path:/packages/agent",
+			"@enjoywt/pi-coding-agent": "github:EnjoyWT/pi-mono#my-work&path:/packages/coding-agent"
+		}
+	}
+}
+```
+
+For pnpm 10, add this public-safe allowlist so Git package `prepare` scripts may run:
+
+```yaml
+onlyBuiltDependencies:
+  - "@enjoywt/pi-ai"
+  - "@enjoywt/pi-agent-core"
+  - "@enjoywt/pi-coding-agent"
+```
+
+Do not add a GitHub Packages token to a public repo. If a token was exposed, rotate it immediately.
+
+After changing the Git dependency support, smoke test from outside this repo:
+
+```bash
+rm -rf /tmp/pi-gitdep-smoke
+mkdir -p /tmp/pi-gitdep-smoke
+cd /tmp/pi-gitdep-smoke
+# create package.json, .npmrc, and pnpm-workspace.yaml using the snippets above
+pnpm install
+node -e "Promise.all([import('@enjoywt/pi-ai'), import('@enjoywt/pi-agent-core'), import('@enjoywt/pi-coding-agent')]).then(() => console.log('imports ok'))"
+```
+
 For delete/modify conflicts, distinguish old upstream code from fork intent.
 If the fork only changed package metadata for a module that upstream deleted, accept upstream deletion.
 Do not keep removed modules merely because prior fork package-name rewrites touched their `package.json` files.
@@ -157,7 +214,6 @@ When resolving conflicts, decide from evidence instead of asking the user repeat
 Keep fork-side changes when they are one of:
 
 - The three package identities and GitHub Packages registry settings listed above.
-- `.github/workflows/publish-github-packages.yml` or other fork publishing infrastructure.
 - Source-level behavior that appears in fork-only commits, such as queue behavior or prompt metadata.
 - Documentation or scripts under `.codex/skills/sync-upstream-my-work/`.
 
